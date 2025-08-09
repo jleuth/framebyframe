@@ -1,6 +1,6 @@
-import dotenv from "dotenv";
+// import dotenv from "dotenv";
 
-dotenv.config({ path: ".env.local" });
+// dotenv.config({ path: ".env.local" });
 import openai from "openai";
 import express from "express";
 import { z } from "zod";
