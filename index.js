@@ -1,7 +1,10 @@
+import dotenv from 'dotenv'
+
+dotenv.config({ path: '.env.local' })
 import openai from "openai";
 import express from "express";
 import { z } from "zod";
-import { zodTextFormat } from "openai/helpers/zod";
+import { zodResponseFormat } from "openai/helpers/zod";
 import cors from "cors";
 const schema = z.object({
   step: z.number().default(1),
@@ -22,7 +25,7 @@ app.use(
     limit: "550mb",
   })
 );
-const openaiApi = new openai.OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openaiApi = new openai.OpenAI({ apiKey: process.env.OPENAI_API_KEY});
 
 app.get("/", (req, res) => res.end("meow:3"));
 app.post("/handle_img", async (req, res) => {
@@ -33,27 +36,30 @@ app.post("/handle_img", async (req, res) => {
     return res.status(400).json({ error: "No file provided" });
   }
   // return json of what it guesses
-  await openaiApi.responses
-    .parse({
-      model: "gpt-5-nano",
-      input: [
+  try {
+    const response = await openaiApi.responses.create({
+    model: "gpt-5-mini",
+    input: [
         {
-          role: "system",
-          content: "What character/letter/token is this image.",
+            role: "user",
+            content: [
+                { type: "input_text", text: "what's in this image?" },
+                {
+                    type: "input_image",
+                    image_url: `${req.body.file}`,
+                },
+            ],
         },
-        {
-          role: "user",
-          content: req.body.file, // Assuming the file content is passed as a string
-        },
-      ],
-      // text: {
-      //   format: zodTextFormat(schema, "event"),
-      // },
-    })
-    .then((json) => {
-      console.log(json);
-      res.status(200).json(json);
+    ],
+});
+
+    return res.status(200).json({ response: response.output_text })
+  } catch (err) {
+    return res.status(500).json({
+      error: "Model call failed",
+      details: String(err),
     });
+  }
 });
 
 app.listen(process.env.PORT || 3001, () => {
