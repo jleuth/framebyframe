@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useMemo } from "react";
+import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import Webcam from "react-webcam";
 import "./App.css";
 
@@ -14,12 +14,14 @@ function App() {
   const [story, setStory] = useState<string | null>(null);
 
   const isComplete = useMemo(() => frames.every((f) => !!f.image), [frames]);
+  const batchTriggeredRef = useRef(false); // Ensures batch inference runs only once per full set; reset in resetAll
 
   const resetAll = useCallback(() => {
     setFrames([{}, {}, {}, {}]);
     setStory(null);
     setCurrentFrame(1);
     setCameraOn(true);
+    batchTriggeredRef.current = false; // reset one-shot guard when starting a new session
   }, []);
 
   const advanceFrame = useCallback(() => {
@@ -79,84 +81,54 @@ function App() {
     []
   );
 
-  // Send recursive context on every capture: prior frames + new, plus story so far
-  const aiReq = useCallback(
-    async (
-      frameIndex: number,
-      imageData: string | null,
-      snapshot: FrameData[],
-      currentStory: string | null
-    ) => {
-      try {
-        const payloadFrames = snapshot.map((f, i) => ({
-          index: i + 1,
-          file: f.image ?? null,
-          caption: f.caption ?? null,
-        }));
 
-        const payload: any = {
-          // current event
-          frame: frameIndex,
-          file: imageData,
+  const runBatchInferenceOnce = useCallback(async () => {
+    try {
+      const payload = {
+        files: frames.map((f) => (f.image ?? null)),
+        captions: frames.map((f) => (f.caption ?? null)),
+        story: story ?? null,
+        complete: true,
+      };
 
-          // recursive context (preserve ordering with nulls)
-          frames: payloadFrames,
-          files: payloadFrames.map((f) => f.file), // include nulls to keep positions
-          captions: payloadFrames.map((f) => f.caption), // include nulls
-          story: currentStory ?? null,
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/handle_batch`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      const data = await res.json();
 
-          // helpful metadata (backend can ignore)
-          active_index: frameIndex,
-          recursive: true,
-          captions_text:
-            payloadFrames
-              .map((f) => (f.caption ? String(f.caption) : ""))
-              .join(" ")
-              .trim() || null,
-          complete: snapshot.every((f) => !!f.image),
-        };
+      // Merge captions once using existing helper
+      const mergeInput = {
+        captions: Array.isArray(data?.captions) ? data.captions : [],
+      };
 
-        const res = await fetch(
-          `${
-            import.meta.env.VITE_API_URL || "http://localhost:3001"
-          }/handle_img`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          }
-        );
-        const data = await res.json();
-
-        // Apply recursive caption refinements (may update earlier frames)
-        const nextFrames = applyCaptionUpdates(snapshot, data, frameIndex - 1);
-        setFrames(nextFrames);
-
-        // Whole-story updates (partial or full)
-        const newStory =
-          (typeof data?.story === "string" && data.story) ||
-          (typeof data?.story_partial === "string" && data.story_partial) ||
-          null;
-
-        if (newStory) {
-          setStory(newStory);
-        } else {
-          // Fallback: if everything filled and no story returned yet
-          const allHaveImages = nextFrames.every((f) => !!f.image);
-          const allHaveCaptions = nextFrames.every((f) => !!f.caption);
-          if (allHaveImages && allHaveCaptions && !currentStory) {
-            const synthetic = nextFrames
+      if (typeof data?.story === "string" && data.story) {
+        // If backend provided a story, set it directly
+        setFrames((prev) => applyCaptionUpdates(prev, mergeInput, 0));
+        setStory(data.story);
+      } else {
+        // Otherwise merge captions and apply single synthetic fallback once
+        setFrames((prev) => {
+          const merged = applyCaptionUpdates(prev, mergeInput, 0);
+          const allHaveImages = merged.every((f) => !!f.image);
+          const allHaveCaptions = merged.every((f) => !!f.caption);
+          if (allHaveImages && allHaveCaptions && !story) {
+            const synthetic = merged
               .map((f, i) => `${i + 1}. ${f.caption}`)
               .join(" ");
             setStory(synthetic);
           }
-        }
-      } catch (e) {
-        console.error("AI request failed", e);
+          return merged;
+        });
       }
-    },
-    [applyCaptionUpdates]
-  );
+    } catch (e) {
+      console.error("Batch AI request failed", e);
+    }
+  }, [frames, story, applyCaptionUpdates]);
 
   const handleCapture = useCallback(
     (imageSrc?: string | null) => {
@@ -166,17 +138,23 @@ function App() {
       setFrames((prev) => {
         const snapshot = prev.map((f) => ({ ...f }));
         snapshot[idx].image = imageSrc;
-        // Fire request with full recursive context (previous + current)
-        if (!snapshot[idx].caption)
-          aiReq(currentFrame, imageSrc, snapshot, story);
+        // No incremental inference; batch will run once after completion
         return snapshot;
       });
 
       // Advance but never loop beyond frame 4
       advanceFrame();
     },
-    [currentFrame, advanceFrame, aiReq, story]
+    [currentFrame, advanceFrame]
   );
+
+  // Trigger exactly once when all frames have images
+  useEffect(() => {
+    if (isComplete && !batchTriggeredRef.current) {
+      batchTriggeredRef.current = true;
+      runBatchInferenceOnce();
+    }
+  }, [isComplete, runBatchInferenceOnce]);
 
   const WebcamPanel: React.FC<{ onCapture: (img?: string | null) => void }> = ({
     onCapture,
