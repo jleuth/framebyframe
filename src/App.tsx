@@ -4,15 +4,28 @@ import viteLogo from '/vite.svg'
 import './App.css'
 import Webcam from 'react-webcam'
 
-const WebcamComponent = () => <Webcam/>
+const WebcamComponent = () => <Webcam style={{ width: '100%', maxWidth: '800px' }} />
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [cameraOn, setCameraOn] = useState(true);
+
+  const handleCameraToggle = () => {
+    setCameraOn((prev) => !prev);
+  };
 
   return (
-    <>
-      <WebcamComponent/>
-    </>
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+      <button
+        onClick={handleCameraToggle}
+        style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 10 }}
+      >
+        Camera on/off
+      </button>
+
+      <div style={{ width: '100%', display: 'grid', placeItems: 'center', padding: '1rem' }}>
+        {cameraOn ? <WebcamComponent /> : null}
+      </div>
+    </div>
   )
 }
 
