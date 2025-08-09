@@ -14,6 +14,49 @@ const schema = z.object({
   ),
 });
 const app = express();
+
+// CORS middleware (configurable via CORS_ORIGIN env; defaults to local dev)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowed = (process.env.CORS_ORIGIN || "http://localhost:5173,http://localhost:3000")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  let allowOrigin = "*";
+
+  if (origin) {
+    if (allowed.includes("*") || allowed.includes(origin)) {
+      allowOrigin = origin;
+    } else {
+      // Origin not allowed; omit ACAO so the browser blocks it
+      allowOrigin = "";
+    }
+  } else if (allowed.length && !allowed.includes("*")) {
+    // Non-browser/server-to-server request without Origin
+    allowOrigin = allowed[0];
+  }
+
+  if (allowOrigin) {
+    res.header("Access-Control-Allow-Origin", allowOrigin);
+  }
+  res.header("Vary", "Origin");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+
+  const reqHeaders = req.header("Access-Control-Request-Headers");
+  res.header("Access-Control-Allow-Headers", reqHeaders || "Content-Type, Authorization");
+
+  // Only allow credentials when a specific origin is used (not '*')
+  if (allowOrigin && allowOrigin !== "*") {
+    res.header("Access-Control-Allow-Credentials", "true");
+  }
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 app.use(
   express.json({
     limit: "550mb",
