@@ -1,14 +1,33 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import React from 'react'
 import './App.css'
 import Webcam from 'react-webcam'
 
-const WebcamComponent = () => <Webcam style={{ width: '100%', maxWidth: '800px' }} />
-
 function App() {
   const [cameraOn, setCameraOn] = useState(true);
-
+  const WebcamComponent = () => {
+  const webcamRef = React.useRef<Webcam>(null);
+  const videoConstraints = { width: 1280, height: 720, facingMode: 'user' };
+  const capture = React.useCallback(
+    () => {
+      webcamRef.current?.getScreenshot();
+    },
+    [webcamRef]
+  );
+  return (
+    <>
+      <Webcam
+        audio={false}
+        height={720}
+        ref={webcamRef}
+        screenshotFormat="image/jpeg"
+        width={1280}
+        videoConstraints={videoConstraints}
+      />
+      <button onClick={capture}>Capture photo</button>
+    </>
+  );
+};
   const handleCameraToggle = () => {
     setCameraOn((prev) => !prev);
   };
@@ -30,3 +49,4 @@ function App() {
 }
 
 export default App
+
