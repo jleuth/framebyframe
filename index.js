@@ -18,7 +18,7 @@ const schema = z.object({
   ),
 });
 const app = express();
-
+app.use(express.static("dist"))
 app.use(cors({ origin: "*" }));
 app.use(
   express.json({
@@ -27,9 +27,8 @@ app.use(
 );
 const openaiApi = new openai.OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-app.get("/", (req, res) => res.end("meow:3"));
 
-app.post("/final_story"), async (res, req) => {
+app.post("/final_story", async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ error: "No request body specified "})
   }
@@ -61,7 +60,7 @@ app.post("/final_story"), async (res, req) => {
       details: String(err),
     });
   }
-}
+})
 app.post("/handle_img", async (req, res) => {
   if (!req.body) {
     return res.status(400).json({ error: "No request body provided" });
