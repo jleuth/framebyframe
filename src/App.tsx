@@ -39,7 +39,7 @@ function App() {
     // frame will be a number 1-4, imageData is the image in b64
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/handle_img`,
+        `http://localhost:3001/handle_img`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
