@@ -1,42 +1,192 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+/* App.css - XKCD-style comic layout */
+
+:root {
+  --ink: #111;
+  --paper: #ffffff;
+  --shadow: rgba(0, 0, 0, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--paper);
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  min-height: 100vh;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 16px 40px;
+}
+
+.title {
+  margin: 0;
+  font-family: "Patrick Hand", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-size: clamp(32px, 5.5vw, 64px);
+  letter-spacing: 1px;
+  color: var(--ink);
   text-align: center;
+  text-transform: uppercase;
+  line-height: 1;
+  /* Slight wobble for hand-drawn feel */
+  transform: rotate(-0.4deg);
+  text-shadow:
+    0.5px 0 var(--ink),
+    -0.5px 0 var(--ink);
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.grid {
+  width: min(1100px, 96vw);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(12px, 2vw, 24px);
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Single comic frame: "messy hand-drawn" with layered borders and subtle rotation */
+.comic-frame {
+  position: relative;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow:
+    0 2px 0 var(--ink),
+    0 6px 16px var(--shadow);
+  /* Slight unevenness per frame via class vars */
+  transform: rotate(var(--frame-tilt, 0deg));
+  overflow: hidden; /* keep inner layers clipped */
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+/* Inner layered “ink” outlines to mimic hand sketch */
+.comic-frame::before,
+.comic-frame::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  pointer-events: none;
 }
 
-.card {
-  padding: 2em;
+.comic-frame::before {
+  transform: rotate(var(--ink-tilt-1, -0.6deg));
 }
 
-.read-the-docs {
-  color: #888;
+.comic-frame::after {
+  inset: 14px;
+  border-width: 2px;
+  border-radius: 6px;
+  transform: rotate(var(--ink-tilt-2, 0.5deg));
+}
+
+/* Per-frame small variations */
+.frame-1 { --frame-tilt: -0.4deg; --ink-tilt-1: -0.8deg; --ink-tilt-2: 0.6deg; }
+.frame-2 { --frame-tilt:  0.3deg; --ink-tilt-1:  0.5deg; --ink-tilt-2: -0.4deg; }
+.frame-3 { --frame-tilt: -0.2deg; --ink-tilt-1:  0.7deg; --ink-tilt-2: -0.2deg; }
+.frame-4 { --frame-tilt:  0.5deg; --ink-tilt-1: -0.5deg; --ink-tilt-2:  0.4deg; }
+
+/* Content region inside each frame */
+.frame-content {
+  position: relative;
+  width: 100%;
+  height: clamp(180px, 28vw, 320px);
+  background: #fafafa;
+  border: 2px dashed rgba(0,0,0,0.2);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Camera frame specifics */
+.camera-frame {
+  background: #fdfdfd;
+  border: 2px dashed transparent; /* remove the dashed outline behind video */
+}
+
+/* Fill frame area with webcam, keep aspect with object-fit */
+.webcam {
+  width: 100%;
+  height: calc(100% - 76px); /* leave space for shutter button */
+  object-fit: cover;
+  border-radius: 6px;
+  background: #000; /* fallback */
+  display: block;
+}
+
+/* Circular shutter button anchored at the bottom center of the camera frame */
+.shutter {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  width: 68px;
+  height: 68px;
+  border-radius: 999px;
+  border: 3px solid var(--ink);
+  background: radial-gradient(circle at 50% 40%, #ff5454, #e63636 60%, #b82020);
+  box-shadow:
+    0 2px 0 var(--ink),
+    0 6px 12px rgba(0,0,0,0.18),
+    inset 0 -4px 0 rgba(0,0,0,0.15),
+    inset 0 3px 0 rgba(255,255,255,0.4);
+  cursor: pointer;
+}
+
+.shutter::after {
+  /* small inner highlight ring for a drawn look */
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  pointer-events: none;
+  transform: rotate(0.6deg);
+}
+
+.shutter:active {
+  transform: translateX(-50%) translateY(1px) scale(0.98);
+  box-shadow:
+    0 1px 0 var(--ink),
+    0 4px 8px rgba(0,0,0,0.16),
+    inset 0 -3px 0 rgba(0,0,0,0.2),
+    inset 0 2px 0 rgba(255,255,255,0.35);
+}
+
+/* Fixed camera toggle button (top-right) */
+.toggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  font-family: "Patrick Hand", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 0 var(--ink), 0 4px 10px var(--shadow);
+  transform: rotate(-0.3deg);
+}
+
+.toggle:active {
+  transform: rotate(-0.3deg) translateY(1px);
+}
+
+/* Optional AI response area */
+.response {
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: var(--ink);
+  max-width: min(900px, 92vw);
+  text-align: center;
 }
