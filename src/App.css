@@ -1,4 +1,4 @@
-/* App.css - XKCD-style comic layout (v3 captions + sidebar) */
+/* App.css - XKCD-style comic layout (v3.1 captions + sidebar + reset) */
 
 :root {
   --ink: #111;
@@ -16,7 +16,7 @@ html, body, #root {
 }
 
 html, body {
-  overflow-x: hidden; /* prevent stray horizontal overflow creating odd blocks */
+  overflow-x: hidden;
 }
 
 body {
@@ -149,7 +149,7 @@ body {
   background: #fff;
 }
 
-/* Monochrome camera shutter button (white fill with black ring) */
+/* Monochrome camera shutter button */
 .shutter {
   position: absolute;
   left: 50%;
@@ -168,8 +168,6 @@ body {
     inset 0 -3px 0 rgba(0,0,0,0.10),
     inset 0 2px 0 rgba(255,255,255,0.55);
 }
-
-/* Inner ring for classic shutter appearance */
 .shutter::before {
   content: "";
   position: absolute;
@@ -179,7 +177,6 @@ body {
   pointer-events: none;
   transform: rotate(0.6deg);
 }
-
 .shutter:active {
   transform: translateX(-50%) translateY(1px) scale(0.98);
   background: var(--ink);
@@ -226,7 +223,6 @@ body {
     0 6px 16px var(--shadow);
   min-height: 200px;
 }
-
 .sidebar::before {
   content: "";
   position: absolute;
@@ -245,7 +241,6 @@ body {
   <rect x='3.5' y='3.5' width='93' height='93' fill='none' stroke='%23111' stroke-width='3' filter='url(%23w2)'/>\
 </svg>");
 }
-
 .sidebar-title {
   margin: 0 0 8px 0;
   font-family: "Patrick Hand", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
@@ -254,24 +249,14 @@ body {
   text-transform: uppercase;
   transform: rotate(-0.3deg);
 }
-
 .sidebar-body {
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   color: var(--ink);
 }
+.story-text { margin: 0; white-space: pre-wrap; }
+.story-hint { margin: 0; color: #333; opacity: 0.9; }
 
-.story-text {
-  margin: 0;
-  white-space: pre-wrap;
-}
-
-.story-hint {
-  margin: 0;
-  color: #333;
-  opacity: 0.9;
-}
-
-/* Fixed camera toggle button (top-right) */
+/* Controls */
 .toggle {
   position: fixed;
   top: 12px;
@@ -288,10 +273,25 @@ body {
   box-shadow: 0 2px 0 var(--ink), 0 4px 10px var(--shadow);
   transform: rotate(-0.3deg);
 }
+.toggle:active { transform: rotate(-0.3deg) translateY(1px); }
 
-.toggle:active {
-  transform: rotate(-0.3deg) translateY(1px);
+.reset {
+  position: fixed;
+  top: 12px;
+  right: 120px; /* sit to the left of the toggle */
+  z-index: 10;
+  font-family: "Patrick Hand", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-size: 16px;
+  color: var(--ink);
+  background: #fffcee;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 0 var(--ink), 0 4px 10px var(--shadow);
+  transform: rotate(0.2deg);
 }
+.reset:active { transform: rotate(0.2deg) translateY(1px); }
 
 /* Optional legacy response area (kept for compatibility) */
 .response {

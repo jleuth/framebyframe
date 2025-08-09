@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import Webcam from "react-webcam";
 import "./App.css";
 
@@ -13,101 +13,175 @@ function App() {
   const [frames, setFrames] = useState<FrameData[]>([{}, {}, {}, {}]);
   const [story, setStory] = useState<string | null>(null);
 
-  const aiReq = async (
-    frame: number,
-    imageData?: string | null,
-    allFrames?: FrameData[]
-  ) => {
-    try {
-      const framesForPayload = (allFrames ?? frames).map((f, i) => ({
-        index: i + 1,
-        file: f.image,
-        caption: f.caption,
-      }));
-      const payload: any = {
-        frame,
-        file: imageData,
-        // provide recursive context without breaking existing API
-        frames: framesForPayload,
-        files: framesForPayload.map((f) => f.file).filter(Boolean),
-        captions: framesForPayload.map((f) => f.caption).filter(Boolean),
-      };
+  const isComplete = useMemo(() => frames.every((f) => !!f.image), [frames]);
 
-      const response = await fetch("http://localhost:3001/handle_img", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+  const resetAll = useCallback(() => {
+    setFrames([{}, {}, {}, {}]);
+    setStory(null);
+    setCurrentFrame(1);
+    setCameraOn(true);
+  }, []);
 
-      const data = await response.json();
-      // Per-frame caption (fallback to data.response)
-      const perFrameCaption = data.caption ?? data.response ?? null;
+  const advanceFrame = useCallback(() => {
+    setCurrentFrame((prev) => Math.min(prev + 1, 4)); // stop at 4, never loop
+  }, []);
 
-      if (perFrameCaption) {
-        setFrames((prev) => {
-          const next = [...prev];
-          next[frame - 1] = { ...next[frame - 1], caption: perFrameCaption };
-          return next;
+  // Apply recursive caption updates coming back from the model
+  const applyCaptionUpdates = useCallback(
+    (base: FrameData[], data: any, justCapturedIdx: number): FrameData[] => {
+      const updated = base.map((f) => ({ ...f }));
+
+      // 1) captions: ["...", "..."] or [{ text: "..." }]
+      if (Array.isArray(data?.captions)) {
+        data.captions.slice(0, 4).forEach((c: any, i: number) => {
+          if (typeof c === "string" && c.length) updated[i].caption = c;
+          else if (c && typeof c.text === "string") updated[i].caption = c.text;
         });
       }
 
-      if (typeof data.story === "string" && data.story.length > 0) {
-        setStory(data.story);
-      } else {
-        // If all frames captured and no story provided, synthesize a simple one
-        const base = allFrames ?? frames;
-        const allHaveCaptions = base.every((f) => !!f.caption);
-        const allHaveImages = base.every((f) => !!f.image);
-        if (allHaveImages && allHaveCaptions) {
-          const synthetic = base
-            .map((f, i) => (f.caption ? `${i + 1}. ${f.caption}` : null))
-            .filter(Boolean)
-            .join(" ");
-          setStory(synthetic || null);
-        }
+      // 2) frames: [{ index: 1, caption: "..." }, ...] or { frame: 1, ... }
+      if (Array.isArray(data?.frames)) {
+        data.frames.forEach((f: any) => {
+          const idx =
+            (typeof f.index === "number" ? f.index : f.frame) ?? null;
+          if (idx && idx >= 1 && idx <= 4) {
+            if (typeof f.caption === "string" && f.caption.length) {
+              updated[idx - 1].caption = f.caption;
+            } else if (f.caption && typeof f.caption.text === "string") {
+              updated[idx - 1].caption = f.caption.text;
+            }
+          }
+        });
       }
-    } catch (error) {
-      console.error("Error sending image to AI API:", error);
-    }
-  };
 
-  const advanceFrame = useCallback(() => {
-    setCurrentFrame((prev) => (prev % 4) + 1);
-  }, []);
+      // 3) updates: { "1": "cap", "2": { text: "cap2" }, ... }
+      if (data?.updates && typeof data.updates === "object") {
+        Object.entries(data.updates).forEach(([k, v]) => {
+          const idx = parseInt(k, 10);
+          if (idx >= 1 && idx <= 4) {
+            if (typeof v === "string" && v.length) {
+              updated[idx - 1].caption = v;
+            } else if (v && typeof (v as any).text === "string") {
+              updated[idx - 1].caption = (v as any).text;
+            }
+          }
+        });
+      }
+
+      // 4) Per-call single caption fallback for the just captured frame
+      if (typeof data?.caption === "string" && data.caption.length) {
+        updated[justCapturedIdx].caption = data.caption;
+      } else if (typeof data?.response === "string" && data.response.length) {
+        updated[justCapturedIdx].caption = data.response;
+      }
+
+      return updated;
+    },
+    []
+  );
+
+  // Send recursive context on every capture: prior frames + new, plus story so far
+  const aiReq = useCallback(
+    async (
+      frameIndex: number,
+      imageData: string | null,
+      snapshot: FrameData[],
+      currentStory: string | null
+    ) => {
+      try {
+        const payloadFrames = snapshot.map((f, i) => ({
+          index: i + 1,
+          file: f.image ?? null,
+          caption: f.caption ?? null,
+        }));
+
+        const payload: any = {
+          // current event
+          frame: frameIndex,
+          file: imageData,
+
+          // recursive context (preserve ordering with nulls)
+          frames: payloadFrames,
+          files: payloadFrames.map((f) => f.file), // include nulls to keep positions
+          captions: payloadFrames.map((f) => f.caption), // include nulls
+          story: currentStory ?? null,
+
+          // helpful metadata (backend can ignore)
+          active_index: frameIndex,
+          recursive: true,
+          captions_text:
+            payloadFrames
+              .map((f) => (f.caption ? String(f.caption) : ""))
+              .join(" ")
+              .trim() || null,
+          complete: snapshot.every((f) => !!f.image),
+        };
+
+        const res = await fetch("http://localhost:3001/handle_img", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+
+        // Apply recursive caption refinements (may update earlier frames)
+        const nextFrames = applyCaptionUpdates(snapshot, data, frameIndex - 1);
+        setFrames(nextFrames);
+
+        // Whole-story updates (partial or full)
+        const newStory =
+          (typeof data?.story === "string" && data.story) ||
+          (typeof data?.story_partial === "string" && data.story_partial) ||
+          null;
+
+        if (newStory) {
+          setStory(newStory);
+        } else {
+          // Fallback: if everything filled and no story returned yet
+          const allHaveImages = nextFrames.every((f) => !!f.image);
+          const allHaveCaptions = nextFrames.every((f) => !!f.caption);
+          if (allHaveImages && allHaveCaptions && !currentStory) {
+            const synthetic = nextFrames
+              .map((f, i) => `${i + 1}. ${f.caption}`)
+              .join(" ");
+            setStory(synthetic);
+          }
+        }
+      } catch (e) {
+        console.error("AI request failed", e);
+      }
+    },
+    [applyCaptionUpdates]
+  );
 
   const handleCapture = useCallback(
     (imageSrc?: string | null) => {
       if (!imageSrc) return;
-      const frameIndex = currentFrame;
+      const idx = currentFrame - 1;
 
       setFrames((prev) => {
-        const next = prev.map((f, i) =>
-          i === frameIndex - 1 ? { ...f, image: imageSrc } : f
-        );
-        // Send with full context including this frame
-        aiReq(frameIndex, imageSrc, next);
-        return next;
+        const snapshot = prev.map((f) => ({ ...f }));
+        snapshot[idx].image = imageSrc;
+        // Fire request with full recursive context (previous + current)
+        aiReq(currentFrame, imageSrc, snapshot, story);
+        return snapshot;
       });
 
+      // Advance but never loop beyond frame 4
       advanceFrame();
     },
-    [currentFrame, advanceFrame]
+    [currentFrame, advanceFrame, aiReq, story]
   );
 
-  const WebcamPanel: React.FC<{ onCapture: (image?: string | null) => void }> = ({
+  const WebcamPanel: React.FC<{ onCapture: (img?: string | null) => void }> = ({
     onCapture,
   }) => {
     const webcamRef = useRef<Webcam>(null);
-
-    const videoConstraints = {
-      width: 1280,
-      height: 720,
-      facingMode: "user",
-    };
+    const videoConstraints = { width: 1280, height: 720, facingMode: "user" };
 
     const capture = useCallback(() => {
-      const imageSrc = webcamRef.current?.getScreenshot();
-      onCapture(imageSrc);
+      const img = webcamRef.current?.getScreenshot();
+      onCapture(img);
     }, [onCapture]);
 
     return (
@@ -144,8 +218,11 @@ function App() {
 
   return (
     <div className="app">
-      <button className="toggle" onClick={() => setCameraOn((prev) => !prev)}>
+      <button className="toggle" onClick={() => setCameraOn((p) => !p)}>
         Camera on/off
+      </button>
+      <button className="reset" onClick={resetAll} title="Reset frames">
+        Reset
       </button>
 
       <h1 className="title">FRAME BY FRAME</h1>
@@ -153,40 +230,52 @@ function App() {
       <div className="layout">
         <div className="grid">
           <div className="comic-frame frame-1">
-            {currentFrame === 1 ? (
+            {!isComplete && currentFrame === 1 ? (
               <WebcamPanel onCapture={handleCapture} />
             ) : frames[0].image ? (
-              <Still src={frames[0].image as string} caption={frames[0].caption} />
+              <Still
+                src={frames[0].image as string}
+                caption={frames[0].caption}
+              />
             ) : (
               <Placeholder caption={frames[0].caption} />
             )}
           </div>
 
           <div className="comic-frame frame-2">
-            {currentFrame === 2 ? (
+            {!isComplete && currentFrame === 2 ? (
               <WebcamPanel onCapture={handleCapture} />
             ) : frames[1].image ? (
-              <Still src={frames[1].image as string} caption={frames[1].caption} />
+              <Still
+                src={frames[1].image as string}
+                caption={frames[1].caption}
+              />
             ) : (
               <Placeholder caption={frames[1].caption} />
             )}
           </div>
 
           <div className="comic-frame frame-3">
-            {currentFrame === 3 ? (
+            {!isComplete && currentFrame === 3 ? (
               <WebcamPanel onCapture={handleCapture} />
             ) : frames[2].image ? (
-              <Still src={frames[2].image as string} caption={frames[2].caption} />
+              <Still
+                src={frames[2].image as string}
+                caption={frames[2].caption}
+              />
             ) : (
               <Placeholder caption={frames[2].caption} />
             )}
           </div>
 
           <div className="comic-frame frame-4">
-            {currentFrame === 4 ? (
+            {!isComplete && currentFrame === 4 ? (
               <WebcamPanel onCapture={handleCapture} />
             ) : frames[3].image ? (
-              <Still src={frames[3].image as string} caption={frames[3].caption} />
+              <Still
+                src={frames[3].image as string}
+                caption={frames[3].caption}
+              />
             ) : (
               <Placeholder caption={frames[3].caption} />
             )}
@@ -200,8 +289,8 @@ function App() {
               <p className="story-text">{story}</p>
             ) : (
               <p className="story-hint">
-                Capture frames to build a cohesive story. The sidebar will summarize the whole
-                narrative as frames are filled.
+                Capture frames to build a cohesive story. The sidebar will
+                summarize and refine the narrative as frames are filled.
               </p>
             )}
           </div>
