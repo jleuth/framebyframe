@@ -32,7 +32,7 @@ app.post("/handle_img", async (req, res) => {
   // return json of what it guesses
   await openaiApi.responses
     .parse({
-      model: "gpt-5",
+      model: "gpt-5-nano",
       input: [
         {
           role: "system",

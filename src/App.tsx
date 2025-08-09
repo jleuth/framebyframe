@@ -9,7 +9,7 @@ function App() {
   const WebcamComponent = () => {
     const webcamRef = React.useRef<Webcam>(null);
     const videoConstraints = { width: 1280, height: 720, facingMode: 'user' };
-    const [currentFrame, setCurrentFrame] = useState(0)
+    let currentFrame = 0
     
     const capture = React.useCallback(
       () => {
@@ -40,10 +40,10 @@ function App() {
 
   const aiReq = async (frame: number, imageData?: string | null) => { // frame will be a number 1-4, imageData is the image in b64
     try {
-      const response = await fetch('https://placeholder.local', {
+      const response = await fetch('https://localhost:5173/handle_img', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ frame: frame, image: imageData }),
+        body: JSON.stringify({ frame: frame, file: imageData }),
       });
       const data = await response.json();
       console.log('AI API response:', data);
