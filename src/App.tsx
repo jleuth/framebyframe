@@ -1,24 +1,21 @@
-import { useState } from 'react'
-import React from 'react'
-import './App.css'
-import Webcam from 'react-webcam'
+import { useState } from "react";
+import React from "react";
+import "./App.css";
+import Webcam from "react-webcam";
 
 function App() {
   const [cameraOn, setCameraOn] = useState(true);
-  
+
   const WebcamComponent = () => {
     const webcamRef = React.useRef<Webcam>(null);
-    const videoConstraints = { width: 1280, height: 720, facingMode: 'user' };
-    let currentFrame = 0
-    
-    const capture = React.useCallback(
-      () => {
-        const imageSrc = webcamRef.current?.getScreenshot();
-        currentFrame + 1
-        aiReq(currentFrame, imageSrc)
-      },
-      [webcamRef]
-    );
+    const videoConstraints = { width: 1280, height: 720, facingMode: "user" };
+    let currentFrame = 0;
+
+    const capture = React.useCallback(() => {
+      const imageSrc = webcamRef.current?.getScreenshot();
+      currentFrame + 1;
+      aiReq(currentFrame, imageSrc);
+    }, [webcamRef]);
     return (
       <>
         <Webcam
@@ -38,35 +35,45 @@ function App() {
     setCameraOn((prev) => !prev);
   };
 
-  const aiReq = async (frame: number, imageData?: string | null) => { // frame will be a number 1-4, imageData is the image in b64
+  const aiReq = async (frame: number, imageData?: string | null) => {
+    // frame will be a number 1-4, imageData is the image in b64
     try {
-      const response = await fetch('https://localhost:5173/handle_img', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ frame: frame, file: imageData }),
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/handle_img`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ frame: frame, file: imageData }),
+        }
+      );
       const data = await response.json();
-      console.log('AI API response:', data);
+      console.log("AI API response:", data);
     } catch (error) {
-      console.error('Error sending image to AI API:', error);
+      console.error("Error sending image to AI API:", error);
     }
-  }
+  };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
       <button
         onClick={handleCameraToggle}
-        style={{ position: 'fixed', top: '1rem', right: '1rem', zIndex: 10 }}
+        style={{ position: "fixed", top: "1rem", right: "1rem", zIndex: 10 }}
       >
         Camera on/off
       </button>
 
-      <div style={{ width: '100%', display: 'grid', placeItems: 'center', padding: '1rem' }}>
+      <div
+        style={{
+          width: "100%",
+          display: "grid",
+          placeItems: "center",
+          padding: "1rem",
+        }}
+      >
         {cameraOn ? <WebcamComponent /> : null}
       </div>
     </div>
-  )
+  );
 }
 
-export default App
-
+export default App;

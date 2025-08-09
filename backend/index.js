@@ -2,6 +2,7 @@ import openai from "openai";
 import express from "express";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
+import cors from "cors";
 const schema = z.object({
   step: z.number().default(1),
   guess: z.string().max(20),
@@ -15,7 +16,7 @@ const schema = z.object({
 });
 const app = express();
 
-app.use(require('cors')({ origin: '*' }))
+app.use(cors({ origin: "*" }));
 app.use(
   express.json({
     limit: "550mb",
@@ -61,4 +62,3 @@ app.post("/handle_img", async (req, res) => {
 app.listen(process.env.PORT || 3001, () => {
   console.log("Server is running");
 });
-
