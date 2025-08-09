@@ -1,6 +1,6 @@
-import dotenv from 'dotenv'
+import dotenv from "dotenv";
 
-dotenv.config({ path: '.env.local' })
+dotenv.config({ path: ".env.local" });
 import openai from "openai";
 import express from "express";
 import { z } from "zod";
@@ -25,7 +25,7 @@ app.use(
     limit: "550mb",
   })
 );
-const openaiApi = new openai.OpenAI({ apiKey: process.env.OPENAI_API_KEY});
+const openaiApi = new openai.OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 app.get("/", (req, res) => res.end("meow:3"));
 app.post("/handle_img", async (req, res) => {
@@ -38,22 +38,22 @@ app.post("/handle_img", async (req, res) => {
   // return json of what it guesses
   try {
     const response = await openaiApi.responses.create({
-    model: "gpt-5-mini",
-    input: [
+      model: "gpt-5-mini",
+      input: [
         {
-            role: "user",
-            content: [
-                { type: "input_text", text: "what's in this image?" },
-                {
-                    type: "input_image",
-                    image_url: `${req.body.file}`,
-                },
-            ],
+          role: "user",
+          content: [
+            { type: "input_text", text: "what's in this image?" },
+            {
+              type: "input_image",
+              image_url: `${req.body.file}`,
+            },
+          ],
         },
-    ],
-});
+      ],
+    });
 
-    return res.status(200).json({ response: response.output_text })
+    return res.status(200).json({ response: response.output_text });
   } catch (err) {
     return res.status(500).json({
       error: "Model call failed",

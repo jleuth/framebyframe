@@ -42,8 +42,7 @@ function App() {
       // 2) frames: [{ index: 1, caption: "..." }, ...] or { frame: 1, ... }
       if (Array.isArray(data?.frames)) {
         data.frames.forEach((f: any) => {
-          const idx =
-            (typeof f.index === "number" ? f.index : f.frame) ?? null;
+          const idx = (typeof f.index === "number" ? f.index : f.frame) ?? null;
           if (idx && idx >= 1 && idx <= 4) {
             if (typeof f.caption === "string" && f.caption.length) {
               updated[idx - 1].caption = f.caption;
@@ -117,11 +116,16 @@ function App() {
           complete: snapshot.every((f) => !!f.image),
         };
 
-        const res = await fetch("http://localhost:3001/handle_img", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        const res = await fetch(
+          `${
+            import.meta.env.VITE_API_URL || "http://localhost:3001"
+          }/handle_img`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        );
         const data = await res.json();
 
         // Apply recursive caption refinements (may update earlier frames)
@@ -163,7 +167,8 @@ function App() {
         const snapshot = prev.map((f) => ({ ...f }));
         snapshot[idx].image = imageSrc;
         // Fire request with full recursive context (previous + current)
-        aiReq(currentFrame, imageSrc, snapshot, story);
+        if (!snapshot[idx].caption)
+          aiReq(currentFrame, imageSrc, snapshot, story);
         return snapshot;
       });
 
