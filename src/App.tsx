@@ -5,29 +5,40 @@ import Webcam from 'react-webcam'
 
 function App() {
   const [cameraOn, setCameraOn] = useState(true);
+  
   const WebcamComponent = () => {
-  const webcamRef = React.useRef<Webcam>(null);
-  const videoConstraints = { width: 1280, height: 720, facingMode: 'user' };
-  const capture = React.useCallback(
-    () => {
-      webcamRef.current?.getScreenshot();
-    },
-    [webcamRef]
-  );
-  return (
-    <>
-      <Webcam
-        audio={false}
-        height={720}
-        ref={webcamRef}
-        screenshotFormat="image/jpeg"
-        width={1280}
-        videoConstraints={videoConstraints}
-      />
-      <button onClick={capture}>Capture photo</button>
-    </>
-  );
-};
+    const webcamRef = React.useRef<Webcam>(null);
+    const videoConstraints = { width: 1280, height: 720, facingMode: 'user' };
+    const [screenshot, setScreenshot] = useState<string | null>(null);
+    
+    const capture = React.useCallback(
+      () => {
+        const imageSrc = webcamRef.current?.getScreenshot();
+        setScreenshot(imageSrc || null);
+      },
+      [webcamRef]
+    );
+    return (
+      <>
+        <Webcam
+          audio={false}
+          height={720}
+          ref={webcamRef}
+          screenshotFormat="image/jpeg"
+          width={1280}
+          videoConstraints={videoConstraints}
+        />
+        <button onClick={capture}>Capture photo</button>
+        {screenshot && (
+          <>
+            <img src={screenshot} alt="Captured" />
+            <button onClick={() => setScreenshot(null)}>Clear photo</button>
+          </>
+        )}
+      </>
+    );
+  };
+
   const handleCameraToggle = () => {
     setCameraOn((prev) => !prev);
   };
