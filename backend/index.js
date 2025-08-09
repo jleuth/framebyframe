@@ -41,20 +41,17 @@ app.post("/handle_img", async (req, res) => {
           role: "system",
           content: "What character/letter/token is this image.",
         },
-      ],
-      files: [
         {
-          name: "image",
-          content: req.body.file,
-          type: "image/png",
+          role: "user",
+          content: req.body.file, // Assuming the file content is passed as a string
         },
       ],
-      text: {
-        format: zodTextFormat(schema, "event"),
-      },
+      // text: {
+      //   format: zodTextFormat(schema, "event"),
+      // },
     })
-    .then((r) => r.json())
     .then((json) => {
+      console.log(json);
       res.status(200).json(json);
     });
 });
